@@ -47,6 +47,7 @@ REGEX_TASKS_1 = re.compile(
     ur'https{0,1}:\/\/codein\.withgoogle\.com\/tasks\/([0-9]+)\/')
 REGEX_TASKS_2 = re.compile(
     ur'https{0,1}:\/\/codein\.withgoogle\.com\/dashboard\/task-instances\/([0-9]+)\/{0,1}')
+REDIRECT = 'https://codein.withgoogle.com/dashboard/task-instances/{taskid}/'
 
 
 class GCIBot(irc.IRCClient):
@@ -77,34 +78,61 @@ class GCIBot(irc.IRCClient):
 
         for id1 in tasks_id_1:
             if id1 not in tasks_id:
-                tasks_id.append(id1)
+                tasks_id.append([0, id1])
 
         for id2 in tasks_id_2:
             if id2 not in tasks_id:
-                tasks_id.append(id2)
+                tasks_id.append([1, id2])
 
+        done = []
         for task in tasks_id:
-            json_ = requests.get(API_LINK.format(taskid=task))
+
+            if task[0]:
+                f = requests.get(REDIRECT.format(taskid=task[1]))
+                task = [0, re.findall(REGEX_TASKS_1, f.url)[0]]
+
+            json_ = requests.get(API_LINK.format(taskid=task[1]))
             json_task = json.loads(json_.text)
 
-            msg = "{title} || {days} || {org} {whatever}"
+            msg = "{title} || {days} || {categories} || {org} {whatever}"
             int_days = json_task["time_to_complete_in_days"]
+            cat_txt = {1: "Code",
+                       2: "User Interface",
+                       3: "Documentation",
+                       4: "QA",
+                       5: "Outreach / Research"}
+            categories = ""
+            for cat in json_task["categories"]:
+                categories += ", " + cat_txt[cat]
+
+            categories = categories[2:]
 
             whatever = ""
             if int(json_task["in_progress_count"]) >= 1:
-                whatever += "|| Task is currently claimed "
+                whatever += "|| Currently claimed "
+
+            if int(
+                    json_task["completed_count"]) == int(
+                    json_task["max_instances"]):
+                whatever += "|| All instances done "
 
             if int(json_task["max_instances"]) > 1:
-                whatever += "|| Max instances: %d " % int(
-                    json_task["max_instances"])
+                whatever += "|| Instances: %d/%d " % (
+                    int(json_task["claimed_count"]), int(json_task["max_instances"]))
 
             if json_task["is_beginner"]:
-                whatever += "|| Is a beginner task "
+                whatever += "|| Beginner task "
+
+            if task[1] in done:
+                return
+            else:
+                done.append(task[1])
 
             d = msg.format(
                 title=json_task['name'],
                 days="%d days" %
                 int_days,
+                categories=categories,
                 org=ORGS[
                     json_task["organization_id"]],
                 whatever=whatever)
