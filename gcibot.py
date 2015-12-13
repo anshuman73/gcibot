@@ -44,7 +44,7 @@ ORGS = {5149586599444480: "Apertium",
 
 API_LINK = "https://codein.withgoogle.com/api/program/2015/taskdefinition/{taskid}/"
 REGEX_TASKS_1 = re.compile(
-    ur'https{0,1}:\/\/codein\.withgoogle\.com\/tasks\/([0-9]+)\/')
+    ur'https{0,1}:\/\/codein\.withgoogle\.com\/tasks\/([0-9]+)\/{0,1}')
 REGEX_TASKS_2 = re.compile(
     ur'https{0,1}:\/\/codein\.withgoogle\.com\/dashboard\/task-instances\/([0-9]+)\/{0,1}')
 REDIRECT = 'https://codein.withgoogle.com/dashboard/task-instances/{taskid}/'
