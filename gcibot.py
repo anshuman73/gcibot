@@ -17,6 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
+import logging
+import data
 import json
 import requests
 import re
@@ -25,6 +27,11 @@ import sys
 from twisted.internet import reactor, protocol
 from twisted.words.protocols import irc
 
+
+logging.basicConfig(level=logging.DEBUG)
+
+ABOUT = "I'm a bot written by Ignacio, paste GCI link task and \
+I will tell data about it.\nSource code available in: https://github.com/i5o/gcibot"
 
 ORGS = {5149586599444480: "Apertium",
         4923366913867776: "Copyleft Games",
@@ -51,12 +58,9 @@ REDIRECT = 'https://codein.withgoogle.com/dashboard/task-instances/{taskid}/'
 
 
 class GCIBot(irc.IRCClient):
-    nickname = 'gcibot'
-    username = 'gcibot'
-    password = 'irodriguez'
-
-    def __init__(self):
-        self.channels = []
+    nickname = data.nickname
+    username = data.username
+    password = data.password
 
     def connectionMade(self):
         irc.IRCClient.connectionMade(self)
@@ -68,10 +72,36 @@ class GCIBot(irc.IRCClient):
         for c in self.factory.channels:
             self.join(c)
 
-    def joined(self, channel):
-        self.channels.append(channel)
-
     def privmsg(self, user, channel, msg):
+        tasks = []
+
+        try:
+            tasks = self.find_tasks(msg)
+        except Exception as error:
+            logging.warning("** Error (%s) **" % error)
+            logging.warning(msg)
+
+        for task in tasks:
+            self.msg(channel, task)
+
+        messaging_me = msg.startswith(
+            self.nickname +
+            ":") or msg.startswith(
+            self.nickname +
+            ",") or msg.startswith(
+            self.nickname +
+            " ")
+
+        user = user.split('!', 1)[0]
+        if messaging_me:
+            if "ping" in msg:
+                self.msg(channel, "%s, pong" % user)
+
+            if "about"in msg:
+                self.msg(channel, "%s, %s" % (user, ABOUT))
+
+    def find_tasks(self, msg):
+        msg_tasks = []
         tasks_id = []
         tasks_id_1 = re.findall(REGEX_TASKS_1, msg)
         tasks_id_2 = re.findall(REGEX_TASKS_2, msg)
@@ -96,11 +126,13 @@ class GCIBot(irc.IRCClient):
 
             msg = "{title} || {days} || {categories} || {org} {whatever}"
             int_days = json_task["time_to_complete_in_days"]
+
             cat_txt = {1: "Code",
                        2: "User Interface",
                        3: "Documentation",
                        4: "QA",
                        5: "Outreach / Research"}
+
             categories = ""
             for cat in json_task["categories"]:
                 categories += ", " + cat_txt[cat]
@@ -108,15 +140,20 @@ class GCIBot(irc.IRCClient):
             categories = categories[2:]
 
             whatever = ""
-            if int(json_task["in_progress_count"]) >= 1:
+
+            claimed = int(json_task["in_progress_count"]) >= 1
+            all_instances_done = int(
+                json_task["completed_count"]) == int(
+                json_task["max_instances"])
+            multiple_instances = int(json_task["max_instances"]) > 1
+
+            if claimed:
                 whatever += "|| Currently claimed "
 
-            if int(
-                    json_task["completed_count"]) == int(
-                    json_task["max_instances"]):
+            if all_instances_done:
                 whatever += "|| All instances done "
 
-            if int(json_task["max_instances"]) > 1:
+            if multiple_instances:
                 whatever += "|| Instances: %d/%d " % (
                     int(json_task["claimed_count"]), int(json_task["max_instances"]))
 
@@ -133,10 +170,12 @@ class GCIBot(irc.IRCClient):
                 days="%d days" %
                 int_days,
                 categories=categories,
-                org=ORGS[
-                    json_task["organization_id"]],
+                org=ORGS[json_task["organization_id"]],
                 whatever=whatever)
-            self.msg(channel, d)
+
+            msg_tasks.append(d)
+
+        return msg_tasks
 
 
 class BotFactory(protocol.ClientFactory):
@@ -153,14 +192,14 @@ class BotFactory(protocol.ClientFactory):
         connector.connect()
 
     def clientConnectionFailed(self, connector, reason):
-        print "connection failed:", reason
+        logging.error("** Conection failed ** ")
         reactor.stop()
 
 
 if __name__ == '__main__':
+    logging.info('** Starting GCIBot **')
     f = BotFactory(sys.argv[1:])
     reactor.connectTCP("irc.freenode.net", 6667, f)
-    print "Connected to server. Channels:"
-    for channel in sys.argv[1:]:
-        print channel
+    logging.info('** Connected to server **')
+    logging.info('** Channels: %s **' % ", ".join(sys.argv[1:]))
     reactor.run()
