@@ -94,11 +94,23 @@ class GCIBot(irc.IRCClient):
 
         user = user.split('!', 1)[0]
         if messaging_me:
-            if "ping" in msg:
+            if "ping" in msg.lower():
                 self.msg(channel, "%s, pong" % user)
 
-            if "about"in msg:
+            if "about" in msg.lower():
                 self.msg(channel, "%s, %s" % (user, ABOUT))
+
+            if "rules" in msg.lower():
+                self.msg(channel, "%s, https://developers.google.com/open-source/gci/resources/contest-rules" % user)
+
+            if "guide" in msg.lower():
+                self.msg(channel, "%s, https://developers.google.com/open-source/gci/resources/getting-started" % user)
+
+            if "faq" in msg.lower():
+                self.msg(channel, "%s, https://developers.google.com/open-source/gci/faq" % user)
+
+            if "timeline" in msg.lower():
+                self.msg(channel, "%s, https://developers.google.com/open-source/gci/timeline" % user)
 
     def find_tasks(self, msg):
         msg_tasks = []
